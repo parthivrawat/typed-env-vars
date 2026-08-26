@@ -1,0 +1,62 @@
+{
+  "name": "typed-env-vars",
+  "version": "1.0.0",
+  "description": "Type-safe environment variable library with automatic type conversion",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "environment",
+    "env",
+    "config",
+    "configuration",
+    "type-safe",
+    "typescript",
+    "validation"
+  ],
+  "author": "Parthiv Rawat",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/parthivrawat/typed-env-vars"
+  },
+  "homepage": "https://github.com/parthivrawat/typed-env-vars#readme",
+  "bugs": {
+    "url": "https://github.com/parthivrawat/typed-env-vars/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
