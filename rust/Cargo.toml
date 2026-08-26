@@ -1,0 +1,17 @@
+[package]
+name = "typed-env-vars"
+version = "1.0.0"
+edition = "2021"
+authors = ["Parthiv Rawat"]
+license = "MIT"
+description = "Type-safe environment variable library with automatic type conversion"
+repository = "https://github.com/parthivrawat/typed-env-vars"
+homepage = "https://github.com/parthivrawat/typed-env-vars"
+documentation = "https://docs.rs/typed-env-vars"
+readme = "README.md"
+keywords = ["environment", "env", "config", "type-safe", "validation"]
+categories = ["config", "development-tools"]
+
+[dependencies]
+
+[dev-dependencies]
