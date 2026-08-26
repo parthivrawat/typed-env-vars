@@ -291,7 +291,6 @@ export class Env {
       return defaultValue!;
     }
     
-    const enumValues = Object.values(enumObj);
     const enumKeys = Object.keys(enumObj);
     
     const upperValue = rawValue.toUpperCase();
@@ -327,19 +326,17 @@ export class Env {
       return value;
     }
     
-    const validProtocols = ['http://', 'https://', 'ftp://', 'ws://', 'wss://'];
-    const hasValidProtocol = validProtocols.some(protocol => value.startsWith(protocol));
-    
-    if (!hasValidProtocol) {
+    try {
+      new URL(value);
+      return value;
+    } catch {
       throw new EnvVarTypeError(
         key,
         value,
         'URL',
-        'URL must start with http://, https://, ftp://, ws://, or wss://'
+        'Value is not a valid URL'
       );
     }
-    
-    return value;
   }
 
   /**
