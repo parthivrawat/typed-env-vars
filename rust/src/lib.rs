@@ -119,9 +119,13 @@ impl EnvVar {
     ///
     /// ```
     /// use typed_env_vars::EnvVar;
+    /// use std::env;
+    ///
+    /// env::set_var("API_KEY", "secret-key-123");
     ///
     /// // Required string
-    /// let api_key = EnvVar::string("API_KEY");
+    /// let api_key = EnvVar::string("API_KEY").unwrap();
+    /// assert_eq!(api_key, "secret-key-123");
     /// ```
     pub fn string(key: &str) -> Result<String, EnvVarError> {
         env::var(key).map_err(|_| EnvVarError::NotFound(key.to_string()))
@@ -287,8 +291,12 @@ impl EnvVar {
     ///
     /// ```
     /// use typed_env_vars::EnvVar;
+    /// use std::env;
     ///
-    /// let db_url = EnvVar::url("DATABASE_URL");
+    /// env::set_var("DATABASE_URL", "https://example.com");
+    ///
+    /// let db_url = EnvVar::url("DATABASE_URL").unwrap();
+    /// assert_eq!(db_url, "https://example.com");
     /// ```
     pub fn url(key: &str) -> Result<String, EnvVarError> {
         let value = Self::string(key)?;
@@ -318,11 +326,15 @@ impl EnvVar {
     ///
     /// ```
     /// use typed_env_vars::EnvVar;
+    /// use std::env;
+    ///
+    /// env::set_var("RELEASE_DATE", "2024-01-15");
     ///
     /// let date = EnvVar::custom("RELEASE_DATE", |s| {
     ///     // Custom parsing logic
     ///     Ok(s.to_string())
-    /// });
+    /// }).unwrap();
+    /// assert_eq!(date, "2024-01-15");
     /// ```
     pub fn custom<T, F>(key: &str, converter: F) -> Result<T, EnvVarError>
     where
