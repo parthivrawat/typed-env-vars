@@ -1,4 +1,4 @@
-module github.com/parthivrawat/typed-env-vars
+module github.com/parthivrawat/typed-env-vars/go
 
 go 1.19
 

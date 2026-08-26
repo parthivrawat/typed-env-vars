@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	env "github.com/parthivrawat/typed-env-vars"
+	env "github.com/parthivrawat/typed-env-vars/go"
 )
 
 // Config holds all application configuration

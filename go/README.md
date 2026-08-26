@@ -14,7 +14,7 @@ A type-safe environment variable library for Go that provides automatic type con
 ## Installation
 
 ```bash
-go get github.com/parthivrawat/typed-env-vars
+go get github.com/parthivrawat/typed-env-vars/go
 ```
 
 ## Quick Start
@@ -24,7 +24,7 @@ package main
 
 import (
     "fmt"
-    "github.com/parthivrawat/typed-env-vars"
+    "github.com/parthivrawat/typed-env-vars/go"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func main() {
 ### String Variables
 
 ```go
-import "github.com/parthivrawat/typed-env-vars"
+import "github.com/parthivrawat/typed-env-vars/go"
 
 // Required string
 apiKey := env.String("API_KEY")
@@ -133,7 +133,7 @@ package main
 
 import (
     "fmt"
-    "github.com/parthivrawat/typed-env-vars"
+    "github.com/parthivrawat/typed-env-vars/go"
 )
 
 type Config struct {
@@ -200,7 +200,7 @@ func main() {
 ## Error Handling
 
 ```go
-import "github.com/parthivrawat/typed-env-vars"
+import "github.com/parthivrawat/typed-env-vars/go"
 
 func main() {
     defer func() {

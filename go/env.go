@@ -5,7 +5,7 @@
 //
 // Example:
 //
-//	import "github.com/parthivrawat/typed-env-vars"
+//	import "github.com/parthivrawat/typed-env-vars/go"
 //
 //	databaseURL := env.URL("DATABASE_URL")
 //	maxConnections := env.Int("MAX_CONNECTIONS", 10)
