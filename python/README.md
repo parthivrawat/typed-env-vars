@@ -120,7 +120,7 @@ LOG_LEVEL = env.enum('LOG_LEVEL', LogLevel, default=LogLevel.INFO)
 ### URL Variables
 
 ```python
-# Validates URL format
+# Validates URL format and accepts any valid scheme (e.g. postgresql://, redis://, amqp://)
 DATABASE_URL = env.url('DATABASE_URL')
 # Example: DATABASE_URL=postgresql://localhost:5432/mydb
 
@@ -205,8 +205,8 @@ except EnvVarTypeError as e:
 - `env.int(key, default=None)` - Get integer value
 - `env.float(key, default=None)` - Get float value
 - `env.bool(key, default=None)` - Get boolean value
-- `env.list(key, default=None, separator=',')` - Get list value
-- `env.dict(key, default=None, item_separator=',', key_value_separator='=')` - Get dict value
+- `env.list(key, default=None, separator=',')` - Get list value; default is returned as a copy
+- `env.dict(key, default=None, item_separator=',', key_value_separator='=')` - Get dict value; default is returned as a copy
 - `env.enum(key, enum_class, default=None)` - Get enum value
 - `env.url(key, default=None)` - Get URL value with validation
 - `env.custom(key, converter, default=None)` - Get value with custom converter
@@ -259,8 +259,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
 
-### 1.0.0 (2024-01-15)
-- Initial release
-- Support for str, int, float, bool, list, dict, enum, URL types
-- Custom type converters
-- Comprehensive test coverage
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history.

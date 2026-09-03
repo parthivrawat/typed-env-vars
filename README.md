@@ -4,7 +4,7 @@ A cross-language, type-safe environment variable library with automatic type con
 
 ## Overview
 
-This library provides a consistent API for loading and validating environment variables across Python, TypeScript, Go, and Rust. It supports common types such as strings, integers, floats, booleans, lists, maps, and URLs, with optional default values and clear error messages.
+This library provides a consistent, cross-language API for loading and validating environment variables across Python, TypeScript, Go, and Rust. It supports strings, integers, floats, booleans, lists, maps/dicts, enums, URLs, and custom conversions, with optional default values and clear error messages.
 
 ## Languages
 
@@ -28,4 +28,4 @@ typed-env-vars/
 
 ## License
 
-MIT License. See the LICENSE file in each language directory for details.
+MIT License. See the root [LICENSE](LICENSE) file for details. Each language directory also contains a copy of the license.

@@ -5,7 +5,10 @@ A type-safe environment variable library for Go that provides automatic type con
 ## Features
 
 - ✅ **Type Safety**: Automatic type conversion with validation
-- ✅ **Rich Types**: Support for string, int, float64, bool, list, map, URL
+- ✅ **Rich Types**: Support for string, int, float64, bool, list, map, enum, URL, and custom types
+- ✅ **Error-Returning Variants**: Idiomatic `*E` functions return `(T, error)` instead of panicking
+- ✅ **Enum Support**: Type-safe enum lookup with `env.Enum` and `env.EnumE`
+- ✅ **Cross-Language Aliases**: `Str`/`Dict` aliases for a shared vocabulary
 - ✅ **Default Values**: Optional default values for missing variables
 - ✅ **Clear Errors**: Descriptive error messages for debugging
 - ✅ **Zero Dependencies**: No external dependencies required
@@ -31,7 +34,7 @@ func main() {
     databaseURL := env.URL("DATABASE_URL")
     maxConnections := env.Int("MAX_CONNECTIONS", 10)
     debug := env.Bool("DEBUG", false)
-    allowedHosts := env.List("ALLOWED_HOSTS", ",", []string{"localhost"})
+    allowedHosts := env.List("ALLOWED_HOSTS", &env.ListOpts{Default: []string{"localhost"}})
     
     fmt.Printf("Database: %s\n", databaseURL)
     fmt.Printf("Max Connections: %d\n", maxConnections)
@@ -89,10 +92,10 @@ enableCache := env.Bool("ENABLE_CACHE", true)
 allowedHosts := env.List("ALLOWED_HOSTS")
 
 // Custom separator
-tags := env.List("TAGS", ":")
+tags := env.List("TAGS", &env.ListOpts{Separator: ":"})
 
 // With default
-features := env.List("FEATURES", ",", []string{"feature1", "feature2"})
+features := env.List("FEATURES", &env.ListOpts{Default: []string{"feature1", "feature2"}})
 ```
 
 ### Map Variables
@@ -102,18 +105,35 @@ features := env.List("FEATURES", ",", []string{"feature1", "feature2"})
 featureFlags := env.Map("FEATURE_FLAGS")
 
 // Custom separators
-config := env.Map("CONFIG", ";", ":")
+config := env.Map("CONFIG", &env.MapOpts{ItemSeparator: ";", KeyValueSeparator: ":"})
 
 // With default
-settings := env.Map("SETTINGS", ",", "=", map[string]string{"mode": "production"})
+settings := env.Map("SETTINGS", &env.MapOpts{Default: map[string]string{"mode": "production"}})
 ```
 
 ### URL Variables
 
 ```go
-// Validates URL format
+// Validates URL format and accepts any valid scheme (e.g. postgresql://, redis://, amqp://)
 databaseURL := env.URL("DATABASE_URL")
 apiEndpoint := env.URL("API_ENDPOINT", "https://api.example.com")
+```
+
+### Enum Variables
+
+```go
+type Environment string
+const (
+    EnvDevelopment Environment = "development"
+    EnvStaging     Environment = "staging"
+)
+
+values := map[string]Environment{
+    "development": EnvDevelopment,
+    "staging":     EnvStaging,
+}
+
+environment := env.Enum("ENVIRONMENT", values, EnvDevelopment)
 ```
 
 ### Custom Type Conversion
@@ -178,11 +198,11 @@ func LoadConfig() *Config {
         
         // Security
         SecretKey:    env.String("SECRET_KEY"),
-        AllowedHosts: env.List("ALLOWED_HOSTS", ",", []string{"localhost"}),
-        CORSOrigins:  env.List("CORS_ORIGINS", ",", []string{}),
+        AllowedHosts: env.List("ALLOWED_HOSTS", &env.ListOpts{Default: []string{"localhost"}}),
+        CORSOrigins:  env.List("CORS_ORIGINS"),
         
         // Features
-        FeatureFlags: env.Map("FEATURE_FLAGS", ",", "=", map[string]string{}),
+        FeatureFlags: env.Map("FEATURE_FLAGS"),
     }
 }
 
@@ -221,6 +241,31 @@ func main() {
 }
 ```
 
+## Error-Returning API (Idiomatic Go)
+
+Each getter also has an `*E` variant that returns a value and an error instead of panicking:
+
+```go
+port, err := env.IntE("PORT")
+if err != nil {
+    // handle err
+}
+```
+
+Available `*E` functions:
+
+- `env.StringE(key, default...)`
+- `env.IntE(key, default...)`
+- `env.FloatE(key, default...)`
+- `env.BoolE(key, default...)`
+- `env.ListE(key, opts...)`
+- `env.MapE(key, opts...)`
+- `env.URLE(key, default...)`
+- `env.CustomE(key, converter, default...)`
+- `env.EnumE(key, values, default...)`
+
+The non-`E` functions and all `Must*` helpers still panic on error.
+
 ## API Reference
 
 ### Functions
@@ -229,10 +274,29 @@ func main() {
 - `env.Int(key, default...)` - Get integer value
 - `env.Float(key, default...)` - Get float64 value
 - `env.Bool(key, default...)` - Get boolean value
-- `env.List(key, separator, default...)` - Get list value
-- `env.Map(key, itemSep, kvSep, default...)` - Get map value
+- `env.List(key, opts...)` - Get list value
+- `env.Map(key, opts...)` - Get map value
 - `env.URL(key, default...)` - Get URL value with validation
 - `env.Custom(key, converter, default...)` - Get value with custom converter
+- `env.Enum(key, values, default...)` - Get enum value with a `map[string]T` lookup
+- `env.Str(key, default...)` - Alias for `String`
+- `env.Dict(key, opts...)` - Alias for `Map`
+
+Use `&env.ListOpts{Separator: ";", Default: []string{"x"}}` and `&env.MapOpts{ItemSeparator: ";", KeyValueSeparator: ":", Default: map[string]string{...}}` to configure lists and maps. List and map defaults are returned as copies so mutating the result does not affect the default.
+
+### Error-Returning Functions
+
+- `env.StringE(key, default...)` - `(string, error)`
+- `env.IntE(key, default...)` - `(int, error)`
+- `env.FloatE(key, default...)` - `(float64, error)`
+- `env.BoolE(key, default...)` - `(bool, error)`
+- `env.ListE(key, opts...)` - `([]string, error)`
+- `env.MapE(key, opts...)` - `(map[string]string, error)`
+- `env.URLE(key, default...)` - `(string, error)`
+- `env.CustomE(key, converter, default...)` - `(T, error)`
+- `env.EnumE(key, values, default...)` - `(T, error)`
+- `env.StrE(key, default...)` - Alias for `StringE`
+- `env.DictE(key, opts...)` - Alias for `MapE`
 
 ### Must Functions
 
@@ -240,7 +304,11 @@ func main() {
 - `env.MustInt(key)` - Get required int (panics if missing)
 - `env.MustFloat(key)` - Get required float64 (panics if missing)
 - `env.MustBool(key)` - Get required bool (panics if missing)
+- `env.MustList(key)` - Get required list (panics if missing)
+- `env.MustMap(key)` - Get required map (panics if missing)
 - `env.MustURL(key)` - Get required URL (panics if missing)
+- `env.MustCustom(key, converter)` - Get required custom value (panics if missing or invalid)
+- `env.MustEnum(key, values)` - Get required enum value (panics if missing or invalid)
 
 ### Error Types
 
@@ -288,3 +356,7 @@ MIT License
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history.

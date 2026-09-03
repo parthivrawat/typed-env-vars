@@ -5,7 +5,8 @@ A type-safe environment variable library for Rust that provides automatic type c
 ## Features
 
 - ✅ **Type Safety**: Automatic type conversion with validation
-- ✅ **Rich Types**: Support for String, i32, i64, f64, bool, Vec, HashMap, URL
+- ✅ **Rich Types**: Support for String, i32, i64, f64, bool, Vec, HashMap, enum, URL, and custom types
+- ✅ **Cross-Language Vocabulary**: `dict` alias for `map` and a shared API shape
 - ✅ **Default Values**: Optional default values using `unwrap_or`
 - ✅ **Clear Errors**: Descriptive error messages for debugging
 - ✅ **Zero Dependencies**: No external dependencies required
@@ -17,7 +18,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-typed-env-vars = "1.0"
+typed-env-vars = "1.1"
 ```
 
 ## Quick Start
@@ -112,7 +113,7 @@ let config = EnvVar::map("CONFIG", ";", ":").unwrap_or_default();
 ### URL Variables
 
 ```rust
-// Validates URL format
+// Validates URL format and accepts any valid scheme (e.g. postgresql://, redis://, amqp://)
 let database_url = EnvVar::url("DATABASE_URL").expect("DATABASE_URL is required");
 // Example: DATABASE_URL=postgresql://localhost:5432/mydb
 
@@ -120,16 +121,43 @@ let api_endpoint = EnvVar::url("API_ENDPOINT")
     .unwrap_or_else(|_| "https://api.example.com".to_string());
 ```
 
+### Dict Alias
+
+```rust
+use std::collections::HashMap;
+
+// `dict` is an alias for `map` that matches the cross-language vocabulary
+let feature_flags = EnvVar::dict("FEATURE_FLAGS", ",", "=").unwrap_or_default();
+```
+
+### Enum Variables
+
+```rust
+use std::collections::HashMap;
+
+#[derive(Clone, Debug, PartialEq)]
+enum Environment {
+    Development,
+    Staging,
+    Production,
+}
+
+let mut values = HashMap::new();
+values.insert("development".to_string(), Environment::Development);
+values.insert("staging".to_string(), Environment::Staging);
+values.insert("production".to_string(), Environment::Production);
+
+let environment = EnvVar::enum_value("ENVIRONMENT", &values, Some(Environment::Development))
+    .unwrap();
+```
+
 ### Custom Type Conversion
 
 ```rust
-use chrono::NaiveDate;
-
-let release_date = EnvVar::custom("RELEASE_DATE", |s| {
-    NaiveDate::parse_from_str(s, "%Y-%m-%d")
-        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
-}).expect("RELEASE_DATE is required");
-// Example: RELEASE_DATE=2024-01-15
+let timeout = EnvVar::custom("TIMEOUT_MS", |s| {
+    let timeout_ms: u64 = s.parse().map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    Ok(std::time::Duration::from_millis(timeout_ms))
+}).unwrap_or_else(|_| std::time::Duration::from_secs(30));
 ```
 
 ## Real-World Example
@@ -235,6 +263,8 @@ fn main() {
 - `EnvVar::bool(key)` - Get boolean value
 - `EnvVar::list(key, separator)` - Get Vec<String> value
 - `EnvVar::map(key, item_sep, kv_sep)` - Get HashMap<String, String> value
+- `EnvVar::dict(key, item_sep, kv_sep)` - Alias for `map`
+- `EnvVar::enum_value(key, values, default)` - Get enum value with a `HashMap<String, T>` lookup
 - `EnvVar::url(key)` - Get URL value with validation
 - `EnvVar::custom(key, converter)` - Get value with custom converter
 
@@ -285,8 +315,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Changelog
 
-### 1.0.0 (2024-01-15)
-- Initial release
-- Support for String, i32, i64, f64, bool, Vec, HashMap, URL types
-- Custom type converters
-- Comprehensive test coverage
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history.

@@ -105,6 +105,7 @@ const LOG_LEVEL = env.enum('LOG_LEVEL', LogLevel, LogLevel.INFO);
 ### URL Variables
 
 ```typescript
+// Validates URL format and accepts any valid scheme (e.g. postgresql://, redis://, amqp://)
 const DATABASE_URL = env.url('DATABASE_URL');
 const API_ENDPOINT = env.url('API_ENDPOINT', 'https://api.example.com');
 ```
@@ -176,6 +177,8 @@ try {
 
 ## API Reference
 
+`Env` is the class exported from the package, and `env` is a ready-to-use singleton instance. You can import either to create your own instance or to use the shared one.
+
 ### Methods
 
 - `env.str(key, default?)` - Get string value
@@ -217,3 +220,7 @@ MIT License
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed history.
