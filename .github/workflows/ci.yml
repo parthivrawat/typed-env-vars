@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.19'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Test Go
+        working-directory: ./go
+        run: go test -v
+
+      - name: Test Python
+        working-directory: ./python
+        run: |
+          pip install -e ".[dev]"
+          pytest -v
+
+      - name: Test Rust
+        working-directory: ./rust
+        run: cargo test
+
+      - name: Test TypeScript
+        working-directory: ./typescript
+        run: |
+          npm install
+          npm test
