@@ -1,6 +1,6 @@
 {
   "name": "typed-env-vars",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Type-safe environment variable library with automatic type conversion",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
