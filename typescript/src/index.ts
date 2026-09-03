@@ -48,7 +48,7 @@ export class Env {
   /**
    * Get raw environment variable value
    */
-  private static getRaw(key: string, defaultValue?: string, required: boolean = true): string | undefined {
+  private getRaw(key: string, defaultValue?: string, required: boolean = true): string | undefined {
     const value = process.env[key];
     
     if (value === undefined) {
@@ -69,9 +69,9 @@ export class Env {
    * @returns String value
    * @throws {EnvVarNotFoundError} If required variable is not set
    */
-  static str(key: string): string;
-  static str(key: string, defaultValue: string): string;
-  static str(key: string, defaultValue?: string): string {
+  str(key: string): string;
+  str(key: string, defaultValue: string): string;
+  str(key: string, defaultValue?: string): string {
     const value = this.getRaw(key, defaultValue, defaultValue === undefined);
     return value ?? defaultValue!;
   }
@@ -85,9 +85,9 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value cannot be converted to int
    */
-  static int(key: string): number;
-  static int(key: string, defaultValue: number): number;
-  static int(key: string, defaultValue?: number): number {
+  int(key: string): number;
+  int(key: string, defaultValue: number): number;
+  int(key: string, defaultValue?: number): number {
     const rawValue = this.getRaw(
       key,
       defaultValue !== undefined ? String(defaultValue) : undefined,
@@ -116,9 +116,9 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value cannot be converted to float
    */
-  static float(key: string): number;
-  static float(key: string, defaultValue: number): number;
-  static float(key: string, defaultValue?: number): number {
+  float(key: string): number;
+  float(key: string, defaultValue: number): number;
+  float(key: string, defaultValue?: number): number {
     const rawValue = this.getRaw(
       key,
       defaultValue !== undefined ? String(defaultValue) : undefined,
@@ -149,9 +149,9 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value cannot be converted to bool
    */
-  static bool(key: string): boolean;
-  static bool(key: string, defaultValue: boolean): boolean;
-  static bool(key: string, defaultValue?: boolean): boolean {
+  bool(key: string): boolean;
+  bool(key: string, defaultValue: boolean): boolean;
+  bool(key: string, defaultValue?: boolean): boolean {
     const rawValue = this.getRaw(
       key,
       defaultValue !== undefined ? String(defaultValue) : undefined,
@@ -185,25 +185,23 @@ export class Env {
    * @returns List of strings
    * @throws {EnvVarNotFoundError} If required variable is not set
    */
-  static list(key: string, options?: { default?: string[]; separator?: string }): string[] {
+  list(key: string, options?: { default?: string[]; separator?: string }): string[] {
     const separator = options?.separator ?? ',';
     const defaultValue = options?.default;
-    
-    const rawValue = this.getRaw(
-      key,
-      defaultValue !== undefined ? defaultValue.join(separator) : undefined,
-      defaultValue === undefined
-    );
-    
-    if (rawValue === undefined) {
-      return defaultValue!;
+    const value = process.env[key];
+
+    if (value === undefined) {
+      if (defaultValue === undefined) {
+        throw new EnvVarNotFoundError(key);
+      }
+      return [...defaultValue];
     }
-    
-    if (!rawValue.trim()) {
+
+    if (!value.trim()) {
       return [];
     }
-    
-    return rawValue.split(separator).map(item => item.trim());
+
+    return value.split(separator).map(item => item.trim());
   }
 
   /**
@@ -217,7 +215,7 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value cannot be parsed as dict
    */
-  static dict(
+  dict(
     key: string,
     options?: {
       default?: Record<string, string>;
@@ -228,30 +226,26 @@ export class Env {
     const itemSeparator = options?.itemSeparator ?? ',';
     const keyValueSeparator = options?.keyValueSeparator ?? '=';
     const defaultValue = options?.default;
-    
-    const defaultStr = defaultValue
-      ? Object.entries(defaultValue)
-          .map(([k, v]) => `${k}${keyValueSeparator}${v}`)
-          .join(itemSeparator)
-      : undefined;
-    
-    const rawValue = this.getRaw(key, defaultStr, defaultValue === undefined);
-    
-    if (rawValue === undefined) {
-      return defaultValue!;
+    const value = process.env[key];
+
+    if (value === undefined) {
+      if (defaultValue === undefined) {
+        throw new EnvVarNotFoundError(key);
+      }
+      return { ...defaultValue };
     }
-    
-    if (!rawValue.trim()) {
+
+    if (!value.trim()) {
       return {};
     }
-    
+
     const result: Record<string, string> = {};
-    
+
     try {
-      for (const item of rawValue.split(itemSeparator)) {
+      for (const item of value.split(itemSeparator)) {
         const trimmedItem = item.trim();
         if (!trimmedItem) continue;
-        
+
         const [k, v] = trimmedItem.split(keyValueSeparator, 2);
         if (v === undefined) {
           throw new Error('Invalid format');
@@ -262,7 +256,7 @@ export class Env {
     } catch (error) {
       throw new EnvVarTypeError(
         key,
-        rawValue,
+        value,
         'dict',
         `Expected format: KEY1${keyValueSeparator}VALUE1${itemSeparator}KEY2${keyValueSeparator}VALUE2`
       );
@@ -279,7 +273,7 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value is not a valid enum member
    */
-  static enum<T extends Record<string, string | number>>(
+  enum<T extends Record<string, string | number>>(
     key: string,
     enumObj: T,
     defaultValue?: T[keyof T]
@@ -317,9 +311,9 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If value is not a valid URL
    */
-  static url(key: string): string;
-  static url(key: string, defaultValue: string): string;
-  static url(key: string, defaultValue?: string): string {
+  url(key: string): string;
+  url(key: string, defaultValue: string): string;
+  url(key: string, defaultValue?: string): string {
     const value = this.str(key, defaultValue as any);
     
     if (!value) {
@@ -349,7 +343,7 @@ export class Env {
    * @throws {EnvVarNotFoundError} If required variable is not set
    * @throws {EnvVarTypeError} If conversion fails
    */
-  static custom<T>(
+  custom<T>(
     key: string,
     converter: (value: string) => T,
     defaultValue?: T
@@ -372,7 +366,7 @@ export class Env {
 /**
  * Singleton instance for convenient access
  */
-export const env = Env;
+export const env = new Env();
 
 /**
  * Default export

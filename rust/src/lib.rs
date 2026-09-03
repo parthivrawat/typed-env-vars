@@ -285,6 +285,17 @@ impl EnvVar {
         Ok(result)
     }
 
+    /// Get dictionary environment variable.
+    ///
+    /// Alias for [`EnvVar::map`] to match the common cross-language vocabulary.
+    pub fn dict(
+        key: &str,
+        item_separator: &str,
+        kv_separator: &str,
+    ) -> Result<HashMap<String, String>, EnvVarError> {
+        Self::map(key, item_separator, kv_separator)
+    }
+
     /// Get URL environment variable with validation
     ///
     /// # Examples
@@ -305,19 +316,110 @@ impl EnvVar {
             return Ok(value);
         }
 
-        let valid_schemes = ["http://", "https://", "ftp://", "ws://", "wss://"];
-        let has_valid_scheme = valid_schemes.iter().any(|s| value.starts_with(s));
-
-        if !has_valid_scheme {
-            return Err(EnvVarError::TypeError {
-                key: key.to_string(),
-                value,
-                expected_type: "URL".to_string(),
-                details: Some("URL must start with http://, https://, ftp://, ws://, or wss://".to_string()),
-            });
+        // Generic URL validation: scheme://[user[:pass]@]host[:port][/path][?query][#frag].
+        // Kept zero-dependency while accepting any valid scheme (postgresql, redis, amqp, etc.).
+        if let Some((scheme, rest)) = value.split_once("://") {
+            if !scheme.is_empty()
+                && scheme
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.')
+            {
+                // Host part is everything before the first path/query/fragment delimiter.
+                let host_part = rest
+                    .split(|c| c == '/' || c == '?' || c == '#')
+                    .next()
+                    .unwrap_or("");
+                if !host_part.is_empty() {
+                    // Strip optional userinfo (keep only what follows the last '@').
+                    let host_with_port = host_part
+                        .rsplit_once('@')
+                        .map(|(_, h)| h)
+                        .unwrap_or(host_part);
+                    // Strip optional port, but preserve bracketed IPv6 literals.
+                    let host = if host_with_port.starts_with('[') {
+                        match host_with_port.find(']') {
+                            Some(end) => &host_with_port[..=end],
+                            None => "",
+                        }
+                    } else {
+                        host_with_port
+                            .split_once(':')
+                            .map(|(h, _)| h)
+                            .unwrap_or(host_with_port)
+                    };
+                    if !host.is_empty() {
+                        return Ok(value);
+                    }
+                }
+            }
         }
 
-        Ok(value)
+        Err(EnvVarError::TypeError {
+            key: key.to_string(),
+            value,
+            expected_type: "URL".to_string(),
+            details: Some("Value must be a valid URL with a scheme and host".to_string()),
+        })
+    }
+
+    /// Get enum environment variable
+    ///
+    /// The `values` map maps accepted string values to their typed enum values.
+    /// Matching is case-insensitive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use typed_env_vars::EnvVar;
+    /// use std::collections::HashMap;
+    /// use std::env;
+    ///
+    /// #[derive(Clone, Debug, PartialEq)]
+    /// enum Environment {
+    ///     Development,
+    ///     Staging,
+    ///     Production,
+    /// }
+    ///
+    /// env::set_var("ENVIRONMENT", "staging");
+    ///
+    /// let mut values = HashMap::new();
+    /// values.insert("development".to_string(), Environment::Development);
+    /// values.insert("staging".to_string(), Environment::Staging);
+    /// values.insert("production".to_string(), Environment::Production);
+    ///
+    /// let env = EnvVar::enum_value("ENVIRONMENT", &values, None).unwrap();
+    /// assert_eq!(env, Environment::Staging);
+    /// ```
+    pub fn enum_value<T: Clone>(
+        key: &str,
+        values: &HashMap<String, T>,
+        default: Option<T>,
+    ) -> Result<T, EnvVarError> {
+        match env::var(key) {
+            Ok(raw) if raw.trim().is_empty() => Err(EnvVarError::TypeError {
+                key: key.to_string(),
+                value: raw,
+                expected_type: "enum".to_string(),
+                details: Some("Empty value is not a valid enum".to_string()),
+            }),
+            Ok(raw) => {
+                let normalized = raw.to_lowercase().trim().to_string();
+                for (k, v) in values {
+                    if k.to_lowercase().trim() == normalized {
+                        return Ok(v.clone());
+                    }
+                }
+                let valid: Vec<String> = values.keys().cloned().collect();
+                Err(EnvVarError::TypeError {
+                    key: key.to_string(),
+                    value: raw,
+                    expected_type: "enum".to_string(),
+                    details: Some(format!("Valid values: {}", valid.join(", "))),
+                })
+            }
+            Err(_) => default.ok_or_else(|| EnvVarError::NotFound(key.to_string())),
+        }
     }
 
     /// Get environment variable with custom converter
@@ -457,6 +559,16 @@ mod tests {
     }
 
     #[test]
+    fn test_url_database_scheme() {
+        env::set_var("TEST_URL_PG", "postgresql://localhost:5432/mydb");
+        assert_eq!(
+            EnvVar::url("TEST_URL_PG").unwrap(),
+            "postgresql://localhost:5432/mydb"
+        );
+        env::remove_var("TEST_URL_PG");
+    }
+
+    #[test]
     fn test_url_invalid() {
         env::set_var("TEST_URL_INVALID", "not-a-url");
         assert!(matches!(
@@ -464,5 +576,39 @@ mod tests {
             Err(EnvVarError::TypeError { .. })
         ));
         env::remove_var("TEST_URL_INVALID");
+    }
+
+    #[test]
+    fn test_dict_alias() {
+        env::set_var("TEST_DICT", "key1=value1,key2=value2");
+        let result = EnvVar::dict("TEST_DICT", ",", "=").unwrap();
+        assert_eq!(result.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(result.get("key2"), Some(&"value2".to_string()));
+        env::remove_var("TEST_DICT");
+    }
+
+    #[test]
+    fn test_enum_value() {
+        #[derive(Clone, Debug, PartialEq)]
+        enum Environment {
+            Development,
+            Staging,
+        }
+
+        let mut values = HashMap::new();
+        values.insert("development".to_string(), Environment::Development);
+        values.insert("staging".to_string(), Environment::Staging);
+
+        env::set_var("TEST_ENUM", "staging");
+        assert_eq!(
+            EnvVar::enum_value("TEST_ENUM", &values, None).unwrap(),
+            Environment::Staging
+        );
+        env::remove_var("TEST_ENUM");
+
+        assert_eq!(
+            EnvVar::enum_value("MISSING_ENUM", &values, Some(Environment::Development)).unwrap(),
+            Environment::Development
+        );
     }
 }

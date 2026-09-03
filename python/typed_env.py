@@ -11,6 +11,7 @@ License: MIT
 import os
 from typing import TypeVar, Optional, Callable, Any, List, Dict
 from enum import Enum
+from urllib.parse import urlparse
 
 
 T = TypeVar('T')
@@ -193,17 +194,18 @@ class Env:
         Raises:
             EnvVarNotFoundError: If required variable is not set
         """
-        raw_value = Env._get_raw(key, 
-                                  separator.join(default) if default is not None else None,
-                                  required=(default is None))
+        value = os.environ.get(key)
+        if value is None:
+            if default is None:
+                raise EnvVarNotFoundError(
+                    f"Required environment variable '{key}' is not set"
+                )
+            return list(default)
         
-        if raw_value is None:
-            return default
-        
-        if not raw_value.strip():
+        if not value.strip():
             return []
         
-        return [item.strip() for item in raw_value.split(separator)]
+        return [item.strip() for item in value.split(separator)]
     
     @staticmethod
     def dict(key: str, default: Optional[Dict[str, str]] = None,
@@ -226,24 +228,20 @@ class Env:
             EnvVarNotFoundError: If required variable is not set
             EnvVarTypeError: If value cannot be parsed as dict
         """
-        if default is not None:
-            default_str = item_separator.join(
-                f"{k}{key_value_separator}{v}" for k, v in default.items()
-            )
-        else:
-            default_str = None
+        value = os.environ.get(key)
+        if value is None:
+            if default is None:
+                raise EnvVarNotFoundError(
+                    f"Required environment variable '{key}' is not set"
+                )
+            return dict(default)
         
-        raw_value = Env._get_raw(key, default_str, required=(default is None))
-        
-        if raw_value is None:
-            return default
-        
-        if not raw_value.strip():
+        if not value.strip():
             return {}
         
         result = {}
         try:
-            for item in raw_value.split(item_separator):
+            for item in value.split(item_separator):
                 item = item.strip()
                 if not item:
                     continue
@@ -252,7 +250,7 @@ class Env:
             return result
         except ValueError:
             raise EnvVarTypeError(
-                f"Environment variable '{key}' has value '{raw_value}' "
+                f"Environment variable '{key}' has value '{value}' "
                 f"which cannot be parsed as dict. "
                 f"Expected format: KEY1{key_value_separator}VALUE1{item_separator}KEY2{key_value_separator}VALUE2"
             )
@@ -312,9 +310,8 @@ class Env:
         if not value:
             return value
         
-        if not (value.startswith('http://') or value.startswith('https://') or
-                value.startswith('ftp://') or value.startswith('ws://') or
-                value.startswith('wss://')):
+        parsed = urlparse(value)
+        if not parsed.scheme or not parsed.netloc:
             raise EnvVarTypeError(
                 f"Environment variable '{key}' has value '{value}' "
                 f"which does not appear to be a valid URL"

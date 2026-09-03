@@ -68,14 +68,14 @@ func LoadConfig() *Config {
 		
 		// Security Settings
 		SecretKey:    env.String("SECRET_KEY", "dev-secret-key-change-in-production"),
-		AllowedHosts: env.List("ALLOWED_HOSTS", ",", []string{"localhost", "127.0.0.1"}),
-		CORSOrigins:  env.List("CORS_ORIGINS", ",", []string{"http://localhost:3000"}),
+		AllowedHosts: env.List("ALLOWED_HOSTS", &env.ListOpts{Separator: ",", Default: []string{"localhost", "127.0.0.1"}}),
+		CORSOrigins:  env.List("CORS_ORIGINS", &env.ListOpts{Default: []string{"http://localhost:3000"}}),
 		
 		// Feature Flags
-		FeatureFlags: env.Map("FEATURE_FLAGS", ",", "=", map[string]string{
+		FeatureFlags: env.Map("FEATURE_FLAGS", &env.MapOpts{Default: map[string]string{
 			"new_ui":        "false",
 			"beta_features": "false",
-		}),
+		}}),
 		
 		// External Services
 		SMTPHost:   env.String("SMTP_HOST", "localhost"),
@@ -128,7 +128,7 @@ func exampleWithDefaults() {
 	// These variables don't exist, so defaults are used
 	port := env.Int("PORT_EXAMPLE", 8000)
 	debug := env.Bool("DEBUG_EXAMPLE", false)
-	allowedHosts := env.List("ALLOWED_HOSTS_EXAMPLE", ",", []string{"localhost"})
+	allowedHosts := env.List("ALLOWED_HOSTS_EXAMPLE", &env.ListOpts{Default: []string{"localhost"}})
 	
 	fmt.Printf("Port: %d\n", port)
 	fmt.Printf("Debug: %v\n", debug)

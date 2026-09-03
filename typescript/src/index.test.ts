@@ -152,6 +152,10 @@ describe('Env.list', () => {
   it('should return default value', () => {
     expect(env.list('MISSING_VAR', { default: ['x', 'y'] })).toEqual(['x', 'y']);
   });
+
+  it('should not serialize defaults through the separator', () => {
+    expect(env.list('MISSING_VAR', { default: ['a,b'] })).toEqual(['a,b']);
+  });
 });
 
 describe('Env.dict', () => {
@@ -200,6 +204,11 @@ describe('Env.dict', () => {
 
   it('should return default value', () => {
     const defaultValue = { a: '1', b: '2' };
+    expect(env.dict('MISSING_VAR', { default: defaultValue })).toEqual(defaultValue);
+  });
+
+  it('should not serialize defaults through the separator', () => {
+    const defaultValue = { a: '1,2' };
     expect(env.dict('MISSING_VAR', { default: defaultValue })).toEqual(defaultValue);
   });
 });

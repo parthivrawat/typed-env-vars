@@ -198,7 +198,7 @@ func TestList(t *testing.T) {
 		os.Setenv("TEST_VAR", "a:b:c")
 		defer os.Unsetenv("TEST_VAR")
 
-		result := List("TEST_VAR", ":")
+		result := List("TEST_VAR", &ListOpts{Separator: ":"})
 		expected := []string{"a", "b", "c"}
 
 		for i, v := range expected {
@@ -219,7 +219,7 @@ func TestList(t *testing.T) {
 	})
 
 	t.Run("returns default value", func(t *testing.T) {
-		result := List("MISSING_VAR", ",", []string{"x", "y"})
+		result := List("MISSING_VAR", &ListOpts{Separator: ",", Default: []string{"x", "y"}})
 		expected := []string{"x", "y"}
 
 		for i, v := range expected {
@@ -273,7 +273,7 @@ func TestMap(t *testing.T) {
 		os.Setenv("TEST_VAR", "key1:value1;key2:value2")
 		defer os.Unsetenv("TEST_VAR")
 
-		result := Map("TEST_VAR", ";", ":")
+		result := Map("TEST_VAR", &MapOpts{ItemSeparator: ";", KeyValueSeparator: ":"})
 		expected := map[string]string{
 			"key1": "value1",
 			"key2": "value2",
@@ -346,6 +346,86 @@ func TestURL(t *testing.T) {
 		result := URL("MISSING_VAR", "https://default.com")
 		if result != "https://default.com" {
 			t.Errorf("expected 'https://default.com', got '%s'", result)
+		}
+	})
+}
+
+func TestStringE(t *testing.T) {
+	t.Run("returns value and nil error when present", func(t *testing.T) {
+		os.Setenv("TEST_VAR", "hello")
+		defer os.Unsetenv("TEST_VAR")
+
+		result, err := StringE("TEST_VAR")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result != "hello" {
+			t.Errorf("expected 'hello', got '%s'", result)
+		}
+	})
+
+	t.Run("returns error when required variable is missing", func(t *testing.T) {
+		_, err := StringE("MISSING_VAR")
+		if _, ok := err.(*EnvVarNotFoundError); !ok {
+			t.Errorf("expected EnvVarNotFoundError, got %T", err)
+		}
+	})
+}
+
+func TestEnum(t *testing.T) {
+	type Environment string
+	const (
+		EnvDevelopment Environment = "development"
+		EnvStaging     Environment = "staging"
+	)
+
+	values := map[string]Environment{
+		"development": EnvDevelopment,
+		"staging":     EnvStaging,
+	}
+
+	t.Run("parses valid enum value case-insensitively", func(t *testing.T) {
+		os.Setenv("TEST_VAR", "STAGING")
+		defer os.Unsetenv("TEST_VAR")
+
+		result := Enum("TEST_VAR", values)
+		if result != EnvStaging {
+			t.Errorf("expected staging, got %v", result)
+		}
+	})
+
+	t.Run("returns default when variable is missing", func(t *testing.T) {
+		result := Enum("MISSING_VAR", values, EnvDevelopment)
+		if result != EnvDevelopment {
+			t.Errorf("expected development, got %v", result)
+		}
+	})
+}
+
+func TestAliases(t *testing.T) {
+	t.Run("Str is an alias for String", func(t *testing.T) {
+		os.Setenv("TEST_VAR", "hello")
+		defer os.Unsetenv("TEST_VAR")
+
+		if Str("TEST_VAR") != "hello" {
+			t.Errorf("Str alias did not return expected value")
+		}
+	})
+
+	t.Run("Dict is an alias for Map", func(t *testing.T) {
+		os.Setenv("TEST_VAR", "a=1,b=2")
+		defer os.Unsetenv("TEST_VAR")
+
+		result := Dict("TEST_VAR")
+		if result["a"] != "1" || result["b"] != "2" {
+			t.Errorf("Dict alias did not return expected value")
+		}
+	})
+
+	t.Run("list default is returned without serialization", func(t *testing.T) {
+		result := List("MISSING_VAR", &ListOpts{Default: []string{"a,b"}})
+		if len(result) != 1 || result[0] != "a,b" {
+			t.Errorf("expected ['a,b'], got %v", result)
 		}
 	})
 }

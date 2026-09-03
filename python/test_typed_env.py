@@ -115,6 +115,10 @@ class TestListEnv:
     def test_list_with_default(self):
         assert env.list('MISSING_VAR', default=['x', 'y']) == ['x', 'y']
 
+    def test_list_default_does_not_serialize(self):
+        # Default values containing the separator should be returned as-is.
+        assert env.list('MISSING_VAR', default=['a,b']) == ['a,b']
+
 
 class TestDictEnv:
     def test_dict_valid(self, monkeypatch):
@@ -143,6 +147,11 @@ class TestDictEnv:
     
     def test_dict_with_default(self):
         default = {'a': '1', 'b': '2'}
+        assert env.dict('MISSING_VAR', default=default) == default
+
+    def test_dict_default_does_not_serialize(self):
+        # Default values containing the separator should be returned as-is.
+        default = {'a': '1,2'}
         assert env.dict('MISSING_VAR', default=default) == default
 
 

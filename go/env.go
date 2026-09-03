@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -52,6 +53,22 @@ func (e *EnvVarTypeError) Error() string {
 	return fmt.Sprintf("environment variable '%s' has value '%s' which %s", e.Key, e.Value, e.Message)
 }
 
+// ListOpts holds optional configuration for List and ListE.
+type ListOpts struct {
+	Separator string
+	Default   []string
+}
+
+// MapOpts holds optional configuration for Map and MapE.
+type MapOpts struct {
+	ItemSeparator     string
+	KeyValueSeparator string
+	Default           map[string]string
+}
+
+// DictOpts is an alias for MapOpts for use with Dict/DictE.
+type DictOpts = MapOpts
+
 // getRaw gets the raw environment variable value
 func getRaw(key string, defaultValue *string, required bool) (string, error) {
 	value, exists := os.LookupEnv(key)
@@ -71,6 +88,16 @@ func getRaw(key string, defaultValue *string, required bool) (string, error) {
 	return value, nil
 }
 
+// StringE gets a string environment variable, returning an error instead of panicking.
+func StringE(key string, defaultValue ...string) (string, error) {
+	var def *string
+	if len(defaultValue) > 0 {
+		def = &defaultValue[0]
+	}
+
+	return getRaw(key, def, def == nil)
+}
+
 // String gets a string environment variable
 //
 // Example:
@@ -78,17 +105,44 @@ func getRaw(key string, defaultValue *string, required bool) (string, error) {
 //	apiKey := env.String("API_KEY")
 //	appName := env.String("APP_NAME", "MyApp")
 func String(key string, defaultValue ...string) string {
-	var def *string
-	if len(defaultValue) > 0 {
-		def = &defaultValue[0]
-	}
-
-	value, err := getRaw(key, def, def == nil)
+	v, err := StringE(key, defaultValue...)
 	if err != nil {
 		panic(err)
 	}
+	return v
+}
 
-	return value
+// MustString is like String but panics if the variable is not set.
+func MustString(key string) string {
+	return String(key)
+}
+
+// IntE gets an integer environment variable, returning an error instead of panicking.
+func IntE(key string, defaultValue ...int) (int, error) {
+	var def *string
+	if len(defaultValue) > 0 {
+		defStr := strconv.Itoa(defaultValue[0])
+		def = &defStr
+	}
+
+	rawValue, err := getRaw(key, def, def == nil)
+	if err != nil {
+		return 0, err
+	}
+
+	if rawValue == "" && def != nil {
+		return defaultValue[0], nil
+	}
+
+	value, err := strconv.Atoi(rawValue)
+	if err != nil {
+		return 0, &EnvVarTypeError{
+			EnvVarError: EnvVarError{Key: key, Message: "cannot be converted to int"},
+			Value:       rawValue,
+		}
+	}
+
+	return value, nil
 }
 
 // Int gets an integer environment variable
@@ -98,30 +152,44 @@ func String(key string, defaultValue ...string) string {
 //	port := env.Int("PORT")
 //	maxRetries := env.Int("MAX_RETRIES", 3)
 func Int(key string, defaultValue ...int) int {
+	v, err := IntE(key, defaultValue...)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// MustInt is like Int but panics if the variable is not set or invalid.
+func MustInt(key string) int {
+	return Int(key)
+}
+
+// FloatE gets a float64 environment variable, returning an error instead of panicking.
+func FloatE(key string, defaultValue ...float64) (float64, error) {
 	var def *string
 	if len(defaultValue) > 0 {
-		defStr := strconv.Itoa(defaultValue[0])
+		defStr := strconv.FormatFloat(defaultValue[0], 'f', -1, 64)
 		def = &defStr
 	}
 
 	rawValue, err := getRaw(key, def, def == nil)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 
 	if rawValue == "" && def != nil {
-		return defaultValue[0]
+		return defaultValue[0], nil
 	}
 
-	value, err := strconv.Atoi(rawValue)
+	value, err := strconv.ParseFloat(rawValue, 64)
 	if err != nil {
-		panic(&EnvVarTypeError{
-			EnvVarError: EnvVarError{Key: key, Message: "cannot be converted to int"},
+		return 0, &EnvVarTypeError{
+			EnvVarError: EnvVarError{Key: key, Message: "cannot be converted to float"},
 			Value:       rawValue,
-		})
+		}
 	}
 
-	return value
+	return value, nil
 }
 
 // Float gets a float64 environment variable
@@ -131,41 +199,22 @@ func Int(key string, defaultValue ...int) int {
 //	timeout := env.Float("TIMEOUT")
 //	rateLimit := env.Float("RATE_LIMIT", 1.5)
 func Float(key string, defaultValue ...float64) float64 {
-	var def *string
-	if len(defaultValue) > 0 {
-		defStr := strconv.FormatFloat(defaultValue[0], 'f', -1, 64)
-		def = &defStr
-	}
-
-	rawValue, err := getRaw(key, def, def == nil)
+	v, err := FloatE(key, defaultValue...)
 	if err != nil {
 		panic(err)
 	}
-
-	if rawValue == "" && def != nil {
-		return defaultValue[0]
-	}
-
-	value, err := strconv.ParseFloat(rawValue, 64)
-	if err != nil {
-		panic(&EnvVarTypeError{
-			EnvVarError: EnvVarError{Key: key, Message: "cannot be converted to float"},
-			Value:       rawValue,
-		})
-	}
-
-	return value
+	return v
 }
 
-// Bool gets a boolean environment variable
+// MustFloat is like Float but panics if the variable is not set or invalid.
+func MustFloat(key string) float64 {
+	return Float(key)
+}
+
+// BoolE gets a boolean environment variable, returning an error instead of panicking.
 //
 // Accepts: true/false, yes/no, 1/0, on/off (case-insensitive)
-//
-// Example:
-//
-//	debug := env.Bool("DEBUG")
-//	enableCache := env.Bool("ENABLE_CACHE", true)
-func Bool(key string, defaultValue ...bool) bool {
+func BoolE(key string, defaultValue ...bool) (bool, error) {
 	var def *string
 	if len(defaultValue) > 0 {
 		defStr := strconv.FormatBool(defaultValue[0])
@@ -174,11 +223,11 @@ func Bool(key string, defaultValue ...bool) bool {
 
 	rawValue, err := getRaw(key, def, def == nil)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
 
 	if rawValue == "" && def != nil {
-		return defaultValue[0]
+		return defaultValue[0], nil
 	}
 
 	trueValues := map[string]bool{
@@ -191,61 +240,80 @@ func Bool(key string, defaultValue ...bool) bool {
 	normalized := strings.ToLower(strings.TrimSpace(rawValue))
 
 	if trueValues[normalized] {
-		return true
+		return true, nil
 	}
 	if falseValues[normalized] {
-		return false
+		return false, nil
 	}
 
-	panic(&EnvVarTypeError{
+	return false, &EnvVarTypeError{
 		EnvVarError: EnvVarError{
 			Key:     key,
 			Message: "cannot be converted to bool. Valid values: true, false, yes, no, 1, 0, on, off",
 		},
 		Value: rawValue,
-	})
+	}
 }
 
-// List gets a list environment variable
+// Bool gets a boolean environment variable
 //
 // Example:
 //
-//	hosts := env.List("ALLOWED_HOSTS")
-//	tags := env.List("TAGS", ",")
-//	defaultHosts := env.List("HOSTS", ",", []string{"localhost"})
-func List(key string, args ...interface{}) []string {
-	separator := ","
-	var defaultValue []string
-
-	// Parse arguments
-	for _, arg := range args {
-		switch v := arg.(type) {
-		case string:
-			separator = v
-		case []string:
-			defaultValue = v
-		}
-	}
-
-	var def *string
-	if defaultValue != nil {
-		defStr := strings.Join(defaultValue, separator)
-		def = &defStr
-	}
-
-	rawValue, err := getRaw(key, def, def == nil)
+//	debug := env.Bool("DEBUG")
+//	enableCache := env.Bool("ENABLE_CACHE", true)
+func Bool(key string, defaultValue ...bool) bool {
+	v, err := BoolE(key, defaultValue...)
 	if err != nil {
 		panic(err)
 	}
+	return v
+}
 
-	if rawValue == "" {
+// MustBool is like Bool but panics if the variable is not set or invalid.
+func MustBool(key string) bool {
+	return Bool(key)
+}
+
+// ListE gets a list environment variable, returning an error instead of panicking.
+//
+// Example:
+//
+//	hosts, err := env.ListE("ALLOWED_HOSTS")
+//	tags, err := env.ListE("TAGS", &env.ListOpts{Separator: ":"})
+//	defaultHosts, err := env.ListE("HOSTS", &env.ListOpts{Default: []string{"localhost"}})
+func ListE(key string, opts ...*ListOpts) ([]string, error) {
+	cfg := &ListOpts{Separator: ","}
+	if len(opts) > 0 && opts[0] != nil {
+		cfg = opts[0]
+	}
+	separator := cfg.Separator
+	if separator == "" {
+		separator = ","
+	}
+	defaultValue := cfg.Default
+
+	value, exists := os.LookupEnv(key)
+	if !exists {
 		if defaultValue != nil {
-			return defaultValue
+			out := make([]string, len(defaultValue))
+			copy(out, defaultValue)
+			return out, nil
 		}
-		return []string{}
+		return nil, &EnvVarNotFoundError{
+			EnvVarError: EnvVarError{Key: key},
+		}
 	}
 
-	parts := strings.Split(rawValue, separator)
+	if value == "" {
+		if defaultValue != nil {
+			out := make([]string, len(defaultValue))
+			copy(out, defaultValue)
+			return out, nil
+		}
+		return []string{}, nil
+	}
+
+	parts := strings.Split(value, separator)
 	result := make([]string, 0, len(parts))
 	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
@@ -254,60 +322,79 @@ func List(key string, args ...interface{}) []string {
 		}
 	}
 
-	return result
+	return result, nil
 }
 
-// Map gets a map environment variable
+// List gets a list environment variable
+//
+// Example:
+//
+//	hosts := env.List("ALLOWED_HOSTS")
+//	tags := env.List("TAGS", &env.ListOpts{Separator: ":"})
+//	defaultHosts := env.List("HOSTS", &env.ListOpts{Default: []string{"localhost"}})
+func List(key string, opts ...*ListOpts) []string {
+	v, err := ListE(key, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// MustList is like List but panics if the variable is not set or invalid.
+func MustList(key string) []string {
+	return List(key)
+}
+
+// MapE gets a map environment variable, returning an error instead of panicking.
 //
 // Format: KEY1=VALUE1,KEY2=VALUE2
 //
 // Example:
 //
-//	flags := env.Map("FEATURE_FLAGS")
-//	settings := env.Map("SETTINGS", ";", ":")
-func Map(key string, args ...interface{}) map[string]string {
-	itemSeparator := ","
-	keyValueSeparator := "="
-	var defaultValue map[string]string
-
-	// Parse arguments
-	for i, arg := range args {
-		switch v := arg.(type) {
-		case string:
-			if i == 0 {
-				itemSeparator = v
-			} else if i == 1 {
-				keyValueSeparator = v
-			}
-		case map[string]string:
-			defaultValue = v
-		}
+//	flags, err := env.MapE("FEATURE_FLAGS")
+//	settings, err := env.MapE("SETTINGS", &env.MapOpts{ItemSeparator: ";", KeyValueSeparator: ":"})
+func MapE(key string, opts ...*MapOpts) (map[string]string, error) {
+	cfg := &MapOpts{ItemSeparator: ",", KeyValueSeparator: "="}
+	if len(opts) > 0 && opts[0] != nil {
+		cfg = opts[0]
 	}
+	itemSeparator := cfg.ItemSeparator
+	if itemSeparator == "" {
+		itemSeparator = ","
+	}
+	keyValueSeparator := cfg.KeyValueSeparator
+	if keyValueSeparator == "" {
+		keyValueSeparator = "="
+	}
+	defaultValue := cfg.Default
 
-	var def *string
-	if defaultValue != nil {
-		pairs := make([]string, 0, len(defaultValue))
+	copyDefault := func() map[string]string {
+		out := make(map[string]string, len(defaultValue))
 		for k, v := range defaultValue {
-			pairs = append(pairs, k+keyValueSeparator+v)
+			out[k] = v
 		}
-		defStr := strings.Join(pairs, itemSeparator)
-		def = &defStr
+		return out
 	}
 
-	rawValue, err := getRaw(key, def, def == nil)
-	if err != nil {
-		panic(err)
-	}
-
-	if rawValue == "" {
+	value, exists := os.LookupEnv(key)
+	if !exists {
 		if defaultValue != nil {
-			return defaultValue
+			return copyDefault(), nil
 		}
-		return map[string]string{}
+		return nil, &EnvVarNotFoundError{
+			EnvVarError: EnvVarError{Key: key},
+		}
+	}
+
+	if value == "" {
+		if defaultValue != nil {
+			return copyDefault(), nil
+		}
+		return map[string]string{}, nil
 	}
 
 	result := make(map[string]string)
-	items := strings.Split(rawValue, itemSeparator)
+	items := strings.Split(value, itemSeparator)
 
 	for _, item := range items {
 		trimmed := strings.TrimSpace(item)
@@ -317,19 +404,151 @@ func Map(key string, args ...interface{}) map[string]string {
 
 		parts := strings.SplitN(trimmed, keyValueSeparator, 2)
 		if len(parts) != 2 {
-			panic(&EnvVarTypeError{
+			return nil, &EnvVarTypeError{
 				EnvVarError: EnvVarError{
 					Key:     key,
 					Message: fmt.Sprintf("cannot be parsed as map. Expected format: KEY1%sVALUE1%sKEY2%sVALUE2", keyValueSeparator, itemSeparator, keyValueSeparator),
 				},
-				Value: rawValue,
-			})
+				Value: value,
+			}
 		}
 
 		result[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	}
 
-	return result
+	return result, nil
+}
+
+// Map gets a map environment variable
+//
+// Format: KEY1=VALUE1,KEY2=VALUE2
+//
+// Example:
+//
+//	flags := env.Map("FEATURE_FLAGS")
+//	settings := env.Map("SETTINGS", &env.MapOpts{ItemSeparator: ";", KeyValueSeparator: ":"})
+func Map(key string, opts ...*MapOpts) map[string]string {
+	v, err := MapE(key, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// MustMap is like Map but panics if the variable is not set or invalid.
+func MustMap(key string) map[string]string {
+	return Map(key)
+}
+
+func mapKeys[T any](m map[string]T) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// EnumE gets an enum environment variable with validation
+//
+// The values map maps accepted string values to their typed enum values.
+// Matching is case-insensitive.
+//
+// Example:
+//
+//	type Environment string
+//	const (
+//	    EnvDevelopment Environment = "development"
+//	    EnvStaging     Environment = "staging"
+//	)
+//	envMap := map[string]Environment{
+//	    "development": EnvDevelopment,
+//	    "staging":     EnvStaging,
+//	}
+//	environment, err := env.EnumE("ENVIRONMENT", envMap, EnvDevelopment)
+func EnumE[T any](key string, values map[string]T, defaultValue ...T) (T, error) {
+	var zero T
+	rawValue, exists := os.LookupEnv(key)
+	if !exists {
+		if len(defaultValue) > 0 {
+			return defaultValue[0], nil
+		}
+		return zero, &EnvVarNotFoundError{
+			EnvVarError: EnvVarError{Key: key},
+		}
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(rawValue))
+	for k, v := range values {
+		if strings.ToLower(strings.TrimSpace(k)) == normalized {
+			return v, nil
+		}
+	}
+
+	return zero, &EnvVarTypeError{
+		EnvVarError: EnvVarError{
+			Key:     key,
+			Message: fmt.Sprintf("cannot be matched to a valid enum value. Valid values: %s", strings.Join(mapKeys(values), ", ")),
+		},
+		Value: rawValue,
+	}
+}
+
+// Enum gets an enum environment variable
+//
+// Example:
+//
+//	environment := env.Enum("ENVIRONMENT", map[string]string{
+//	    "development": "development",
+//	    "staging":     "staging",
+//	}, "development")
+func Enum[T any](key string, values map[string]T, defaultValue ...T) T {
+	v, err := EnumE(key, values, defaultValue...)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+// MustEnum is like Enum but panics if the variable is not set or invalid
+func MustEnum[T any](key string, values map[string]T) T {
+	return Enum(key, values)
+}
+
+// URLE gets a URL environment variable with validation, returning an error instead of panicking.
+//
+// Example:
+//
+//	dbURL, err := env.URLE("DATABASE_URL")
+//	apiEndpoint, err := env.URLE("API_ENDPOINT", "https://api.example.com")
+func URLE(key string, defaultValue ...string) (string, error) {
+	var def *string
+	if len(defaultValue) > 0 {
+		def = &defaultValue[0]
+	}
+
+	value, err := getRaw(key, def, def == nil)
+	if err != nil {
+		return "", err
+	}
+
+	if value == "" {
+		return value, nil
+	}
+
+	// Validate URL
+	parsedURL, err := url.Parse(value)
+	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", &EnvVarTypeError{
+			EnvVarError: EnvVarError{
+				Key:     key,
+				Message: "is not a valid URL",
+			},
+			Value: value,
+		}
+	}
+
+	return value, nil
 }
 
 // URL gets a URL environment variable with validation
@@ -339,43 +558,27 @@ func Map(key string, args ...interface{}) map[string]string {
 //	dbURL := env.URL("DATABASE_URL")
 //	apiEndpoint := env.URL("API_ENDPOINT", "https://api.example.com")
 func URL(key string, defaultValue ...string) string {
-	var def *string
-	if len(defaultValue) > 0 {
-		def = &defaultValue[0]
-	}
-
-	value, err := getRaw(key, def, def == nil)
+	v, err := URLE(key, defaultValue...)
 	if err != nil {
 		panic(err)
 	}
-
-	if value == "" {
-		return value
-	}
-
-	// Validate URL
-	parsedURL, err := url.Parse(value)
-	if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-		panic(&EnvVarTypeError{
-			EnvVarError: EnvVarError{
-				Key:     key,
-				Message: "is not a valid URL",
-			},
-			Value: value,
-		})
-	}
-
-	return value
+	return v
 }
 
-// Custom gets an environment variable with a custom converter function
+// MustURL is like URL but panics if the variable is not set or invalid.
+func MustURL(key string) string {
+	return URL(key)
+}
+
+// CustomE gets an environment variable with a custom converter function, returning an error instead of panicking.
 //
 // Example:
 //
-//	releaseDate := env.Custom("RELEASE_DATE", func(s string) (interface{}, error) {
+//	releaseDate, err := env.CustomE("RELEASE_DATE", func(s string) (time.Time, error) {
 //	    return time.Parse("2006-01-02", s)
 //	})
-func Custom(key string, converter func(string) (interface{}, error), defaultValue ...interface{}) interface{} {
+func CustomE[T any](key string, converter func(string) (T, error), defaultValue ...T) (T, error) {
+	var zero T
 	var def *string
 	if len(defaultValue) > 0 {
 		def = new(string)
@@ -384,48 +587,63 @@ func Custom(key string, converter func(string) (interface{}, error), defaultValu
 
 	rawValue, err := getRaw(key, def, def == nil)
 	if err != nil {
-		panic(err)
+		return zero, err
 	}
 
 	if rawValue == "" && def != nil {
-		return defaultValue[0]
+		return defaultValue[0], nil
 	}
 
 	value, err := converter(rawValue)
 	if err != nil {
-		panic(&EnvVarTypeError{
+		return zero, &EnvVarTypeError{
 			EnvVarError: EnvVarError{
 				Key:     key,
 				Message: fmt.Sprintf("conversion failed: %v", err),
 			},
 			Value: rawValue,
-		})
+		}
 	}
 
-	return value
+	return value, nil
 }
 
-// MustString is like String but panics if the variable is not set
-func MustString(key string) string {
-	return String(key)
+// Custom gets an environment variable with a custom converter function
+//
+// Example:
+//
+//	releaseDate := env.Custom("RELEASE_DATE", func(s string) (time.Time, error) {
+//	    return time.Parse("2006-01-02", s)
+//	})
+func Custom[T any](key string, converter func(string) (T, error), defaultValue ...T) T {
+	v, err := CustomE(key, converter, defaultValue...)
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
 
-// MustInt is like Int but panics if the variable is not set
-func MustInt(key string) int {
-	return Int(key)
+// MustCustom is like Custom but panics if the variable is not set or conversion fails.
+func MustCustom[T any](key string, converter func(string) (T, error)) T {
+	return Custom(key, converter)
 }
 
-// MustFloat is like Float but panics if the variable is not set
-func MustFloat(key string) float64 {
-	return Float(key)
+// Str is an alias for String for a common cross-language vocabulary.
+func Str(key string, defaultValue ...string) string {
+	return String(key, defaultValue...)
 }
 
-// MustBool is like Bool but panics if the variable is not set
-func MustBool(key string) bool {
-	return Bool(key)
+// StrE is an alias for StringE.
+func StrE(key string, defaultValue ...string) (string, error) {
+	return StringE(key, defaultValue...)
 }
 
-// MustURL is like URL but panics if the variable is not set
-func MustURL(key string) string {
-	return URL(key)
+// Dict is an alias for Map for a common cross-language vocabulary.
+func Dict(key string, opts ...*DictOpts) map[string]string {
+	return Map(key, opts...)
+}
+
+// DictE is an alias for MapE.
+func DictE(key string, opts ...*DictOpts) (map[string]string, error) {
+	return MapE(key, opts...)
 }
